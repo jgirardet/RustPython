@@ -2,8 +2,9 @@
 
 pub mod objbool;
 pub mod objbuiltinfunc;
-pub mod objbytearray;
-pub mod objbytes;
+// pub mod objbytearray;
+// pub mod objbytes;
+pub mod objbyte;
 pub mod objclassmethod;
 pub mod objcode;
 pub mod objcomplex;

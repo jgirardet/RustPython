@@ -263,7 +263,6 @@ fn set_value(obj: &PyObjectRef, value: Vec<u8>) {
     obj.borrow_mut().kind = PyObjectPayload::Bytes { value };
 }
 */
-
 /// Return a lowercase hex representation of a bytearray
 fn to_hex(bytearray: &[u8]) -> String {
     bytearray.iter().fold(String::new(), |mut s, b| {
