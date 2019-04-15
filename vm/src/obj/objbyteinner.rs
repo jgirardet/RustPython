@@ -13,6 +13,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use super::objint;
+use super::objsequence;
 use super::objsequence::PySliceableSequence;
 use crate::obj::objint::PyInt;
 use num_integer::Integer;
@@ -22,6 +23,7 @@ use super::objbytearray::{get_value as get_value_bytearray, PyByteArray};
 use super::objbytes::PyBytes;
 use super::objmemory::PyMemoryView;
 use super::objnone::PyNone;
+use super::objtype;
 
 #[derive(Debug, Default, Clone)]
 pub struct PyByteInner {
@@ -465,13 +467,29 @@ impl PyByteInner {
         end: OptionalArg<PyObjectRef>,
         vm: &VirtualMachine,
     ) -> PyResult {
-        let suff = match is_bytes_like(&suffix) {
-            Some(value) => value,
-            None => {
-                return Err(vm.new_type_error(format!(
-                    "endswith first arg must be bytes or a tuple of bytes, not {}",
-                    suffix
-                )));
+        let suff = if objtype::isinstance(&suffix, &vm.ctx.tuple_type()) {
+            let mut flatten = vec![];
+            for v in objsequence::get_elements(&suffix).to_vec() {
+                match is_bytes_like(&v) {
+                    None => {
+                        return Err(vm.new_type_error(format!(
+                            "a bytes-like object is required, not {}",
+                            &v.class().name,
+                        )));
+                    }
+                    Some(value) => flatten.extend(value),
+                }
+            }
+            flatten
+        } else {
+            match is_bytes_like(&suffix) {
+                Some(value) => value,
+                None => {
+                    return Err(vm.new_type_error(format!(
+                        "endswith first arg must be bytes or a tuple of bytes, not {}",
+                        suffix
+                    )));
+                }
             }
         };
 
@@ -497,16 +515,31 @@ impl PyByteInner {
         end: OptionalArg<PyObjectRef>,
         vm: &VirtualMachine,
     ) -> PyResult {
-        let suff = match is_bytes_like(&suffix) {
-            Some(value) => value,
-            None => {
-                return Err(vm.new_type_error(format!(
-                    "startswith first arg must be bytes or a tuple of bytes, not {}",
-                    suffix
-                )));
+        let suff = if objtype::isinstance(&suffix, &vm.ctx.tuple_type()) {
+            let mut flatten = vec![];
+            for v in objsequence::get_elements(&suffix).to_vec() {
+                match is_bytes_like(&v) {
+                    None => {
+                        return Err(vm.new_type_error(format!(
+                            "a bytes-like object is required, not {}",
+                            &v.class().name,
+                        )));
+                    }
+                    Some(value) => flatten.extend(value),
+                }
+            }
+            flatten
+        } else {
+            match is_bytes_like(&suffix) {
+                Some(value) => value,
+                None => {
+                    return Err(vm.new_type_error(format!(
+                        "endswith first arg must be bytes or a tuple of bytes, not {}",
+                        suffix
+                    )));
+                }
             }
         };
-
         if suff.is_empty() {
             return Ok(vm.new_bool(true));
         }
@@ -514,9 +547,8 @@ impl PyByteInner {
             &is_valid_slice_arg(start, vm)?,
             &is_valid_slice_arg(end, vm)?,
         );
-        let start = range.start - suff.len();
 
-        if suff.as_slice() == &self.elements.do_slice(range)[..start] {
+        if suff.as_slice() == &self.elements.do_slice(range)[..suff.len()] {
             Ok(vm.new_bool(true))
         } else {
             Ok(vm.new_bool(false))
