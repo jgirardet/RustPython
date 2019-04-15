@@ -301,6 +301,17 @@ impl PyBytesRef {
     ) -> PyResult {
         self.inner.endswith(suffix, start, end, vm)
     }
+
+    #[pymethod(name = "startswith")]
+    fn startswith(
+        self,
+        suffix: PyObjectRef,
+        start: OptionalArg<PyObjectRef>,
+        end: OptionalArg<PyObjectRef>,
+        vm: &VirtualMachine,
+    ) -> PyResult {
+        self.inner.startswith(suffix, start, end, vm)
+    }
 }
 
 #[derive(Debug)]

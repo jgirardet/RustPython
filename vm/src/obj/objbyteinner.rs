@@ -457,6 +457,7 @@ impl PyByteInner {
 
         Ok(vm.ctx.new_bytes(refs))
     }
+
     pub fn endswith(
         &self,
         suffix: PyObjectRef,
@@ -484,6 +485,38 @@ impl PyByteInner {
         let end = range.end - suff.len();
 
         if suff.as_slice() == &self.elements.do_slice(range)[end..] {
+            Ok(vm.new_bool(true))
+        } else {
+            Ok(vm.new_bool(false))
+        }
+    }
+    pub fn startswith(
+        &self,
+        suffix: PyObjectRef,
+        start: OptionalArg<PyObjectRef>,
+        end: OptionalArg<PyObjectRef>,
+        vm: &VirtualMachine,
+    ) -> PyResult {
+        let suff = match is_bytes_like(&suffix) {
+            Some(value) => value,
+            None => {
+                return Err(vm.new_type_error(format!(
+                    "startswith first arg must be bytes or a tuple of bytes, not {}",
+                    suffix
+                )));
+            }
+        };
+
+        if suff.is_empty() {
+            return Ok(vm.new_bool(true));
+        }
+        let range = self.elements.get_slice_range(
+            &is_valid_slice_arg(start, vm)?,
+            &is_valid_slice_arg(end, vm)?,
+        );
+        let start = range.start - suff.len();
+
+        if suff.as_slice() == &self.elements.do_slice(range)[..start] {
             Ok(vm.new_bool(true))
         } else {
             Ok(vm.new_bool(false))
