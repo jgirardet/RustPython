@@ -290,6 +290,17 @@ impl PyBytesRef {
     fn join(self, iter: PyIterable, vm: &VirtualMachine) -> PyResult {
         self.inner.join(iter, vm)
     }
+
+    #[pymethod(name = "endswith")]
+    fn endswith(
+        self,
+        suffix: PyObjectRef,
+        start: OptionalArg<PyObjectRef>,
+        end: OptionalArg<PyObjectRef>,
+        vm: &VirtualMachine,
+    ) -> PyResult {
+        self.inner.endswith(suffix, start, end, vm)
+    }
 }
 
 #[derive(Debug)]

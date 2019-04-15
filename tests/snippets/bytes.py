@@ -185,3 +185,10 @@ assert (
 )
 with assertRaises(TypeError):
     b"".join((b"km", "kl"))
+
+#endswith startswith
+assert b"abcde".endswith(b"de")
+assert b"abcde".endswith(b"")
+assert not b"abcde".endswith(b"zx")
+assert b"abcde".endswith(b"bc", 0, 3)
+assert not b"abcde".endswith(b"bc", 2, 3)
