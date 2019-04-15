@@ -186,17 +186,44 @@ assert (
 with assertRaises(TypeError):
     b"".join((b"km", "kl"))
 
-#endswith startswith
+# endswith startswith
 assert b"abcde".endswith(b"de")
 assert b"abcde".endswith(b"")
 assert not b"abcde".endswith(b"zx")
 assert b"abcde".endswith(b"bc", 0, 3)
 assert not b"abcde".endswith(b"bc", 2, 3)
-assert b"abcde".endswith((b"c",b"de"))
+assert b"abcde".endswith((b"c", b"de"))
 
 assert b"abcde".startswith(b"ab")
 assert b"abcde".startswith(b"")
 assert not b"abcde".startswith(b"zx")
 assert b"abcde".startswith(b"cd", 2)
 assert not b"abcde".startswith(b"cd", 1, 4)
-assert b"abcde".startswith((b"a",b"bc"))
+assert b"abcde".startswith((b"a", b"bc"))
+
+
+# index find
+assert b"abcd".index(b"cd") == 2
+assert b"abcd".index(b"cd", 0) == 2
+assert b"abcd".index(b"cd", 1) == 2
+assert b"abcd".index(99) == 2
+with assertRaises(ValueError):
+    b"abcde".index(b"c", 3, 1)
+with assertRaises(ValueError):
+    b"abcd".index(b"cdaaaaa")
+with assertRaises(ValueError):
+    b"abcd".index(b"b", 3, 4)
+with assertRaises(ValueError):
+    b"abcd".index(1)
+
+
+assert b"abcd".find(b"cd") == 2
+assert b"abcd".find(b"cd", 0) == 2
+assert b"abcd".find(b"cd", 1) == 2
+assert b"abcde".find(b"c", 3, 1) == -1
+assert b"abcd".find(b"cdaaaaa") == -1
+assert b"abcd".find(b"b", 3, 4) == -1
+assert b"abcd".find(1) == -1
+assert b"abcd".find(99) == 2
+
+#int ?
