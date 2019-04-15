@@ -299,7 +299,7 @@ impl PyBytesRef {
         end: OptionalArg<PyObjectRef>,
         vm: &VirtualMachine,
     ) -> PyResult {
-        self.inner.endswith(suffix, start, end, vm)
+        self.inner.startsendswith(suffix, start, end, true, vm)
     }
 
     #[pymethod(name = "startswith")]
@@ -310,7 +310,7 @@ impl PyBytesRef {
         end: OptionalArg<PyObjectRef>,
         vm: &VirtualMachine,
     ) -> PyResult {
-        self.inner.startswith(suffix, start, end, vm)
+        self.inner.startsendswith(suffix, start, end, false, vm)
     }
 }
 

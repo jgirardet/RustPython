@@ -460,16 +460,17 @@ impl PyByteInner {
         Ok(vm.ctx.new_bytes(refs))
     }
 
-    pub fn endswith(
+    pub fn startsendswith(
         &self,
-        suffix: PyObjectRef,
+        arg: PyObjectRef,
         start: OptionalArg<PyObjectRef>,
         end: OptionalArg<PyObjectRef>,
+        endswith: bool, // true for endswith, false for startswith
         vm: &VirtualMachine,
     ) -> PyResult {
-        let suff = if objtype::isinstance(&suffix, &vm.ctx.tuple_type()) {
+        let suff = if objtype::isinstance(&arg, &vm.ctx.tuple_type()) {
             let mut flatten = vec![];
-            for v in objsequence::get_elements(&suffix).to_vec() {
+            for v in objsequence::get_elements(&arg).to_vec() {
                 match is_bytes_like(&v) {
                     None => {
                         return Err(vm.new_type_error(format!(
@@ -482,12 +483,12 @@ impl PyByteInner {
             }
             flatten
         } else {
-            match is_bytes_like(&suffix) {
+            match is_bytes_like(&arg) {
                 Some(value) => value,
                 None => {
                     return Err(vm.new_type_error(format!(
                         "endswith first arg must be bytes or a tuple of bytes, not {}",
-                        suffix
+                        arg
                     )));
                 }
             }
@@ -500,59 +501,18 @@ impl PyByteInner {
             &is_valid_slice_arg(start, vm)?,
             &is_valid_slice_arg(end, vm)?,
         );
-        let end = range.end - suff.len();
 
-        if suff.as_slice() == &self.elements.do_slice(range)[end..] {
-            Ok(vm.new_bool(true))
-        } else {
-            Ok(vm.new_bool(false))
+        if range.end - range.start < suff.len() {
+            return Ok(vm.new_bool(false));
         }
-    }
-    pub fn startswith(
-        &self,
-        suffix: PyObjectRef,
-        start: OptionalArg<PyObjectRef>,
-        end: OptionalArg<PyObjectRef>,
-        vm: &VirtualMachine,
-    ) -> PyResult {
-        let suff = if objtype::isinstance(&suffix, &vm.ctx.tuple_type()) {
-            let mut flatten = vec![];
-            for v in objsequence::get_elements(&suffix).to_vec() {
-                match is_bytes_like(&v) {
-                    None => {
-                        return Err(vm.new_type_error(format!(
-                            "a bytes-like object is required, not {}",
-                            &v.class().name,
-                        )));
-                    }
-                    Some(value) => flatten.extend(value),
-                }
-            }
-            flatten
+
+        let offset = if endswith {
+            (range.end - suff.len())..range.end
         } else {
-            match is_bytes_like(&suffix) {
-                Some(value) => value,
-                None => {
-                    return Err(vm.new_type_error(format!(
-                        "endswith first arg must be bytes or a tuple of bytes, not {}",
-                        suffix
-                    )));
-                }
-            }
+            0..suff.len()
         };
-        if suff.is_empty() {
-            return Ok(vm.new_bool(true));
-        }
-        let range = self.elements.get_slice_range(
-            &is_valid_slice_arg(start, vm)?,
-            &is_valid_slice_arg(end, vm)?,
-        );
 
-        if suff.as_slice() == &self.elements.do_slice(range)[..suff.len()] {
-            Ok(vm.new_bool(true))
-        } else {
-            Ok(vm.new_bool(false))
-        }
+        Ok(vm.new_bool(suff.as_slice() == &self.elements.do_slice(range)[offset]))
     }
 }
 
