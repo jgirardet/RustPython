@@ -574,7 +574,7 @@ impl PyByteInner {
             None => {return Err(vm.new_type_error(format!("a bytes-like object is required, not {}", to)));},
         };
 
-        for i in 0..255 {
+        for i in 0..=255 {
             res.push(if let Some(position) = from.iter().position(|&x| x ==i) {
                 to[position]
             }  else {
