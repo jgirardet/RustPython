@@ -62,6 +62,7 @@ pub fn init(context: &PyContext) {
     let bytes_type = &context.bytes_type;
     extend_class!(context, bytes_type, {
 "fromhex" => context.new_rustfunc(PyBytesRef::fromhex),
+"maketrans" => context.new_rustfunc(PyByteInner::maketrans),
 });
     let bytesiterator_type = &context.bytesiterator_type;
     extend_class!(context, bytesiterator_type, {
@@ -338,6 +339,10 @@ impl PyBytesRef {
     ) -> PyResult {
         Ok(vm.new_int(self.inner.find(sub, start, end, vm)?))
     }
+
+    // fn maketrans(from: PyObjectRef, to: PyObjectRef, vm: &VirtualMachine) -> PyResult {
+    //     PyByteInner::maketrans(from, to, vm)
+    // }
 }
 
 #[derive(Debug)]

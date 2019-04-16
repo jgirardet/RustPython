@@ -107,7 +107,12 @@ impl PyByteInner {
                 0..=8 => res.push_str(&format!("\\x0{}", i)),
                 9 => res.push_str("\\t"),
                 10 => res.push_str("\\n"),
+                11..=12 => res.push_str(&format!("\\x0{:x}", i)),
+                // 12 => res.push_str(&format!("\\x0{}", i)),
                 13 => res.push_str("\\r"),
+                14..=15 => res.push_str(&format!("\\x0{:x}", i)),
+                39 => res.push_str("\\\'"),
+                92 => res.push_str("\\\\"),
                 32..=126 => res.push(*(i) as char),
                 _ => res.push_str(&format!("\\x{:x}", i)),
             }
@@ -554,6 +559,30 @@ impl PyByteInner {
         }
         Ok(-1isize)
 
+    }
+
+    pub fn maketrans(from: PyObjectRef, to: PyObjectRef, vm :&VirtualMachine) -> PyResult{
+        let mut res =  vec![];
+
+        let from = match is_bytes_like(&from) {
+            Some(value) => value,
+            None => {return Err(vm.new_type_error(format!("a bytes-like object is required, not {}", from)));},
+        };
+
+        let to = match is_bytes_like(&to) {
+            Some(value) => value,
+            None => {return Err(vm.new_type_error(format!("a bytes-like object is required, not {}", to)));},
+        };
+
+        for i in 0..255 {
+            res.push(if let Some(position) = from.iter().position(|&x| x ==i) {
+                to[position]
+            }  else {
+                i
+            });
+        }
+
+        Ok(vm.ctx.new_bytes(res))
     }
     
 }
