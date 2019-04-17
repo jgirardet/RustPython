@@ -61,13 +61,13 @@ pub fn init(context: &PyContext) {
     PyBytesRef::extend_class(context, &context.bytes_type);
     let bytes_type = &context.bytes_type;
     extend_class!(context, bytes_type, {
-"fromhex" => context.new_rustfunc(PyBytesRef::fromhex),
-});
+    "fromhex" => context.new_rustfunc(PyBytesRef::fromhex),
+    });
     let bytesiterator_type = &context.bytesiterator_type;
     extend_class!(context, bytesiterator_type, {
-"__next__" => context.new_rustfunc(PyBytesIteratorRef::next),
-"__iter__" => context.new_rustfunc(PyBytesIteratorRef::iter),
-});
+    "__next__" => context.new_rustfunc(PyBytesIteratorRef::next),
+    "__iter__" => context.new_rustfunc(PyBytesIteratorRef::iter),
+    });
 }
 
 #[pyimpl(__inside_vm)]
@@ -257,6 +257,28 @@ impl PyBytesRef {
     #[pymethod(name = "join")]
     fn join(self, iter: PyIterable, vm: &VirtualMachine) -> PyResult {
         self.inner.join(iter, vm)
+    }
+
+    #[pymethod(name = "endswith")]
+    fn endswith(
+        self,
+        suffix: PyObjectRef,
+        start: OptionalArg<PyObjectRef>,
+        end: OptionalArg<PyObjectRef>,
+        vm: &VirtualMachine,
+    ) -> PyResult {
+        self.inner.startsendswith(suffix, start, end, true, vm)
+    }
+
+    #[pymethod(name = "startswith")]
+    fn startswith(
+        self,
+        suffix: PyObjectRef,
+        start: OptionalArg<PyObjectRef>,
+        end: OptionalArg<PyObjectRef>,
+        vm: &VirtualMachine,
+    ) -> PyResult {
+        self.inner.startsendswith(suffix, start, end, false, vm)
     }
 }
 
