@@ -1,3 +1,4 @@
+use crate::obj::objstr::PyStringRef;
 use crate::pyobject::PyObjectRef;
 use num_bigint::BigInt;
 
@@ -23,6 +24,31 @@ use super::objbytes::PyBytes;
 #[derive(Debug, Default, Clone)]
 pub struct PyByteInner {
     pub elements: Vec<u8>,
+}
+
+#[derive(FromArgs)]
+pub struct ByteInnerDecodeOptions {
+    #[pyarg(positional_or_keyword, optional = true)]
+    encoding: OptionalArg<PyStringRef>,
+    #[pyarg(positional_or_keyword, optional = true)]
+    errors: OptionalArg<PyStringRef>,
+}
+
+impl ByteInnerDecodeOptions {
+    fn get_value(&self) -> (&str, &str) {
+        let encoding = if let OptionalArg::Present(value) = &self.encoding {
+            value.as_str()
+        } else {
+            "utf_8"
+        };
+        let errors = if let OptionalArg::Present(value) = &self.errors {
+            value.as_str()
+        } else {
+            "strict"
+        };
+
+        (encoding, errors)
+    }
 }
 
 impl PyByteInner {
@@ -385,6 +411,16 @@ impl PyByteInner {
         res.extend_from_slice(&vec![fillbyte; rn][..]);
 
         res
+    }
+
+    pub fn decode(&self, options: ByteInnerDecodeOptions, vm: &VirtualMachine) -> PyResult {
+        let (encoding, errors) = options.get_value();
+
+        Ok(vm.new_str(
+            PyString::from_encoded(&self.elements, encoding, errors, vm)?
+                .as_str()
+                .to_string(),
+        ))
     }
 }
 

@@ -128,6 +128,8 @@ pub struct ExceptionZoo {
     pub type_error: PyClassRef,
     pub value_error: PyClassRef,
     pub zero_division_error: PyClassRef,
+    pub unicode_error: PyClassRef,
+    pub lookup_error: PyClassRef,
 
     pub warning: PyClassRef,
     pub bytes_warning: PyClassRef,
@@ -167,6 +169,8 @@ impl ExceptionZoo {
         let not_implemented_error = create_type("NotImplementedError", &type_type, &runtime_error);
         let file_not_found_error = create_type("FileNotFoundError", &type_type, &os_error);
         let permission_error = create_type("PermissionError", &type_type, &os_error);
+        let unicode_error = create_type("UnicodeError", &type_type, &os_error);
+        let lookup_error = create_type("LookupError", &type_type, &os_error);
 
         let warning = create_type("Warning", &type_type, &exception_type);
         let bytes_warning = create_type("BytesWarning", &type_type, &warning);
@@ -203,6 +207,8 @@ impl ExceptionZoo {
             type_error,
             value_error,
             zero_division_error,
+            unicode_error,
+            lookup_error,
             warning,
             bytes_warning,
             unicode_warning,

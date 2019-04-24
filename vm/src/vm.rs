@@ -243,6 +243,16 @@ impl VirtualMachine {
         syntax_error
     }
 
+    pub fn new_unicode_error(&self, msg: String) -> PyObjectRef {
+        let unicode_error = self.ctx.exceptions.unicode_error.clone();
+        self.new_exception(unicode_error, msg)
+    }
+
+    pub fn new_lookup_error(&self, msg: String) -> PyObjectRef {
+        let lookup_error = self.ctx.exceptions.lookup_error.clone();
+        self.new_exception(lookup_error, msg)
+    }
+
     pub fn get_none(&self) -> PyObjectRef {
         self.ctx.none()
     }

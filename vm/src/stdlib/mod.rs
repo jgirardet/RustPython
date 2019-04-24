@@ -1,3 +1,4 @@
+pub mod _codecsmodule;
 mod ast;
 mod dis;
 pub(crate) mod json;

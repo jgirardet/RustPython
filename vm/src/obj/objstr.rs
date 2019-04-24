@@ -20,6 +20,7 @@ use super::objint;
 use super::objsequence::PySliceableSequence;
 use super::objslice::PySlice;
 use super::objtype::{self, PyClassRef};
+use crate::stdlib::_codecsmodule::{normalize_encoding, utf_8_decode};
 
 /// str(object='') -> str
 /// str(bytes_or_buffer[, encoding[, errors]]) -> str
@@ -41,6 +42,32 @@ pub struct PyString {
 impl PyString {
     pub fn as_str(&self) -> &str {
         &self.value
+    }
+
+    pub fn from_encoded(
+        obj: &[u8],
+        encoding: &str,
+        errors: &str,
+        vm: &VirtualMachine,
+    ) -> PyResult<PyString> {
+        let errors = if errors.is_empty() { "strict" } else { errors };
+
+        // most usefull should be fast
+        if encoding.is_empty() {
+            return Ok(PyString {
+                value: utf_8_decode(&obj, errors, vm)?,
+            });
+        }
+        let normalized_encoding = normalize_encoding(&encoding);
+
+        let decoded = match &normalized_encoding[..] {
+            "utf8" => utf_8_decode(&obj, errors, vm)?,
+            "utf_8" => utf_8_decode(&obj, errors, vm)?,
+            // "utf_8" => String::from_utf8(obj).unwrap(),
+            unknown => return Err(vm.new_lookup_error(format!("unknown encoding: {}", unknown))),
+        };
+
+        Ok(PyString { value: decoded })
     }
 }
 
@@ -97,6 +124,7 @@ impl PyString {
             payload.clone().into_ref_with_type(vm, cls)
         }
     }
+
     #[pymethod(name = "__add__")]
     fn add(&self, rhs: PyObjectRef, vm: &VirtualMachine) -> PyResult<String> {
         if objtype::isinstance(&rhs, &vm.ctx.str_type()) {

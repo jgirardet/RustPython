@@ -162,3 +162,5 @@ with assertRaises(TypeError):
 with assertRaises(TypeError):
     b"b".center(2, b"ba")
 b"kok".center(5, bytearray(b"x"))
+
+# decode : see in decode.py

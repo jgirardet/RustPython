@@ -7,7 +7,7 @@ use std::ops::Deref;
 use crate::function::OptionalArg;
 use crate::pyobject::{PyClassImpl, PyContext, PyObjectRef, PyRef, PyResult, PyValue};
 
-use super::objbyteinner::{is_byte, PyByteInner};
+use super::objbyteinner::{is_byte, ByteInnerDecodeOptions, PyByteInner};
 use super::objiter;
 use super::objslice::PySlice;
 use super::objtype::PyClassRef;
@@ -268,6 +268,11 @@ impl PyBytesRef {
         i @PyInt => Ok(vm.ctx.new_bytes(self.inner.center(i.as_bigint(), sym, vm))),
         obj => {Err(vm.new_type_error(format!("{} cannot be interpreted as an integer", obj)))}
         )
+    }
+
+    #[pymethod(name = "decode")]
+    fn decode(self, options: ByteInnerDecodeOptions, vm: &VirtualMachine) -> PyResult {
+        self.inner.decode(options, vm)
     }
 }
 
