@@ -1,3 +1,8 @@
+use crate::function::OptionalArg;
+use crate::obj::objbyteinner::ByteInnerDecodeOptions;
+use crate::obj::objbytes::PyBytesRef;
+use crate::obj::objstr::PyStringRef;
+use crate::pyobject::PyObjectRef;
 use crate::pyobject::PyResult;
 use crate::vm::VirtualMachine;
 use std::fmt::Write;
@@ -123,7 +128,7 @@ fn utf8_errors(tab: &[u8], errors: &str, vm: &VirtualMachine) -> PyResult<String
     Ok(new_string)
 }
 
-pub fn utf_8_decode(bytes: &[u8], errors: &str, vm: &VirtualMachine) -> PyResult<String> {
+pub fn _utf_8_decode(bytes: &[u8], errors: &str, vm: &VirtualMachine) -> PyResult<String> {
     match errors {
         "strict" => match String::from_utf8(bytes.to_vec()) {
             Ok(value) => Ok(value),
@@ -133,4 +138,34 @@ pub fn utf_8_decode(bytes: &[u8], errors: &str, vm: &VirtualMachine) -> PyResult
         "ignore" | "backslashreplace" | "surrogateescape" => utf8_errors(bytes, errors, vm),
         unknown => Err(vm.new_lookup_error(format!("unknown error handler name {}", unknown))),
     }
+}
+
+pub fn utf_8_decode2(
+    obj: PyBytesRef,
+    errorss: OptionalArg<PyStringRef>,
+    vm: &VirtualMachine,
+) -> PyResult<String> {
+    let bytes = obj.get_value();
+    let errors = if let OptionalArg::Present(value) = &errorss {
+        value.as_str()
+    } else {
+        "strict"
+    };
+    match errors {
+        "strict" => match String::from_utf8(bytes.to_vec()) {
+            Ok(value) => Ok(value),
+            Err(err) => utf8_error_strict(err, "'utf-8'", vm),
+        },
+        "replace" => Ok(String::from_utf8_lossy(bytes).to_string()),
+        "ignore" | "backslashreplace" | "surrogateescape" => utf8_errors(bytes, errors, vm),
+        unknown => Err(vm.new_lookup_error(format!("unknown error handler name {}", unknown))),
+    }
+}
+
+pub fn make_module(vm: &VirtualMachine) -> PyObjectRef {
+    let ctx = &vm.ctx;
+
+    py_module!(vm, "_codecs", {
+        "utf_8_decode" => ctx.new_rustfunc(utf_8_decode2),
+    })
 }

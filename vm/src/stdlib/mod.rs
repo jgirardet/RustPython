@@ -1,4 +1,4 @@
-pub mod _codecsmodule;
+pub mod _codecs;
 mod ast;
 mod dis;
 pub(crate) mod json;
@@ -48,6 +48,7 @@ pub fn get_module_inits() -> HashMap<String, StdlibInitFunc> {
     modules.insert("tokenize".to_string(), Box::new(tokenize::make_module));
     modules.insert("types".to_string(), Box::new(types::make_module));
     modules.insert("_weakref".to_string(), Box::new(weakref::make_module));
+    modules.insert("_codecs".to_string(), Box::new(_codecs::make_module));
 
     // disable some modules on WASM
     #[cfg(not(target_arch = "wasm32"))]

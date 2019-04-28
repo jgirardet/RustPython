@@ -1,3 +1,5 @@
+use crate::obj::objbyteinner::ByteInnerDecodeOptions;
+use crate::obj::objbytes::PyBytesRef;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::ops::Range;
@@ -20,7 +22,7 @@ use super::objint;
 use super::objsequence::PySliceableSequence;
 use super::objslice::PySlice;
 use super::objtype::{self, PyClassRef};
-use crate::stdlib::_codecsmodule::{normalize_encoding, utf_8_decode};
+use crate::stdlib::_codecs::{normalize_encoding, utf_8_decode2};
 
 /// str(object='') -> str
 /// str(bytes_or_buffer[, encoding[, errors]]) -> str
@@ -45,24 +47,24 @@ impl PyString {
     }
 
     pub fn from_encoded(
-        obj: &[u8],
-        encoding: &str,
-        errors: &str,
+        obj: &PyBytesRef,
+        options: ByteInnerDecodeOptions,
         vm: &VirtualMachine,
     ) -> PyResult<PyString> {
-        let errors = if errors.is_empty() { "strict" } else { errors };
+        let encoding = options.get_encoding();
+        let errors = options.errors;
 
         // most usefull should be fast
-        if encoding.is_empty() {
+        if encoding == "utf_8" {
             return Ok(PyString {
-                value: utf_8_decode(&obj, errors, vm)?,
+                value: utf_8_decode2(obj.clone(), errors, vm)?,
             });
         }
         let normalized_encoding = normalize_encoding(&encoding);
 
         let decoded = match &normalized_encoding[..] {
-            "utf8" => utf_8_decode(&obj, errors, vm)?,
-            "utf_8" => utf_8_decode(&obj, errors, vm)?,
+            "utf8" => utf_8_decode2(obj.clone(), errors, vm)?,
+            "utf_8" => utf_8_decode2(obj.clone(), errors, vm)?,
             // TODO : match next  : utf16, utf32, ascii, windowsmbcs, latin
             // TODO : if nothing found use register
             unknown => return Err(vm.new_lookup_error(format!("unknown encoding: {}", unknown))),

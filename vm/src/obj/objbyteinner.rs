@@ -1,3 +1,4 @@
+use crate::obj::objbytes::PyBytesRef;
 use crate::obj::objstr::PyStringRef;
 use crate::pyobject::PyObjectRef;
 use num_bigint::BigInt;
@@ -31,11 +32,11 @@ pub struct ByteInnerDecodeOptions {
     #[pyarg(positional_or_keyword, optional = true)]
     encoding: OptionalArg<PyStringRef>,
     #[pyarg(positional_or_keyword, optional = true)]
-    errors: OptionalArg<PyStringRef>,
+    pub errors: OptionalArg<PyStringRef>,
 }
 
 impl ByteInnerDecodeOptions {
-    fn get_value(&self) -> (&str, &str) {
+    pub fn get_value(&self) -> (&str, &str) {
         let encoding = if let OptionalArg::Present(value) = &self.encoding {
             value.as_str()
         } else {
@@ -48,6 +49,13 @@ impl ByteInnerDecodeOptions {
         };
 
         (encoding, errors)
+    }
+    pub fn get_encoding(&self) -> &str {
+        if let OptionalArg::Present(value) = &self.encoding {
+            value.as_str()
+        } else {
+            "utf_8"
+        }
     }
 }
 
@@ -413,11 +421,16 @@ impl PyByteInner {
         res
     }
 
-    pub fn decode(&self, options: ByteInnerDecodeOptions, vm: &VirtualMachine) -> PyResult {
-        let (encoding, errors) = options.get_value();
+    pub fn decode(
+        &self,
+        obj: &PyBytesRef,
+        options: ByteInnerDecodeOptions,
+        vm: &VirtualMachine,
+    ) -> PyResult {
+        // let (encoding, errors) = options.get_value();
 
         Ok(vm.new_str(
-            PyString::from_encoded(&self.elements, encoding, errors, vm)?
+            PyString::from_encoded(obj, options, vm)?
                 .as_str()
                 .to_string(),
         ))

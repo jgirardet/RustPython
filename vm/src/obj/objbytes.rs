@@ -272,7 +272,7 @@ impl PyBytesRef {
 
     #[pymethod(name = "decode")]
     fn decode(self, options: ByteInnerDecodeOptions, vm: &VirtualMachine) -> PyResult {
-        self.inner.decode(options, vm)
+        self.inner.decode(&self, options, vm)
     }
 }
 
