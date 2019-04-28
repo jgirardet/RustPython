@@ -76,7 +76,7 @@ pub fn normalize_encoding(encoding: &str) -> String {
     res
 }
 
-fn error_strict(err: FromUtf8Error, codec: &str, vm: &VirtualMachine) -> PyResult<String> {
+fn utf8_error_strict(err: FromUtf8Error, codec: &str, vm: &VirtualMachine) -> PyResult<String> {
     let pos = err.utf8_error().valid_up_to();
     Err(vm.new_unicode_error(format!(
         "{} codec can't decode byte \\x{:x} in position {}: invalid start byte",
@@ -127,7 +127,7 @@ pub fn utf_8_decode(bytes: &[u8], errors: &str, vm: &VirtualMachine) -> PyResult
     match errors {
         "strict" => match String::from_utf8(bytes.to_vec()) {
             Ok(value) => Ok(value),
-            Err(err) => error_strict(err, "'utf-8'", vm),
+            Err(err) => utf8_error_strict(err, "'utf-8'", vm),
         },
         "replace" => Ok(String::from_utf8_lossy(bytes).to_string()),
         "ignore" | "backslashreplace" | "surrogateescape" => utf8_errors(bytes, errors, vm),

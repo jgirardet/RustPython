@@ -63,7 +63,8 @@ impl PyString {
         let decoded = match &normalized_encoding[..] {
             "utf8" => utf_8_decode(&obj, errors, vm)?,
             "utf_8" => utf_8_decode(&obj, errors, vm)?,
-            // "utf_8" => String::from_utf8(obj).unwrap(),
+            // TODO : match next  : utf16, utf32, ascii, windowsmbcs, latin
+            // TODO : if nothing found use register
             unknown => return Err(vm.new_lookup_error(format!("unknown encoding: {}", unknown))),
         };
 
