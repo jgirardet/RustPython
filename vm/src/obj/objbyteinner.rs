@@ -1,5 +1,10 @@
 use crate::obj::objint::PyIntRef;
-use crate::obj::objslice::PySlice;
+use crate::obj::objnone::PyNoneRef;
+use crate::obj::objslice::PySliceRef;
+use crate::obj::objtuple::PyTupleRef;
+use crate::pyobject::Either;
+use crate::pyobject::PyRef;
+use crate::pyobject::PyValue;
 use crate::pyobject::TryFromObject;
 use crate::pyobject::{PyIterable, PyObjectRef};
 use core::ops::Range;
@@ -17,7 +22,7 @@ use std::hash::{Hash, Hasher};
 
 use super::objint;
 use super::objsequence::{is_valid_slice_arg, PySliceableSequence};
-use super::objtype;
+
 use crate::obj::objint::PyInt;
 use num_integer::Integer;
 use num_traits::ToPrimitive;
@@ -25,12 +30,43 @@ use num_traits::ToPrimitive;
 use super::objbytearray::{get_value as get_value_bytearray, PyByteArray};
 use super::objbytes::PyBytes;
 use super::objmemory::PyMemoryView;
-use super::objnone::PyNone;
+
 use super::objsequence;
 
 #[derive(Debug, Default, Clone)]
 pub struct PyByteInner {
     pub elements: Vec<u8>,
+}
+
+impl TryFromObject for PyByteInner {
+    fn try_from_object(vm: &VirtualMachine, obj: PyObjectRef) -> PyResult<Self> {
+        match_class!(obj,
+
+            i @ PyBytes => Ok(PyByteInner{elements: i.get_value().to_vec()}),
+            j @ PyByteArray => Ok(PyByteInner{elements: get_value_bytearray(&j.as_object()).to_vec()}),
+            k @ PyMemoryView => Ok(PyByteInner{elements: k.get_obj_value().unwrap()}),
+            obj => Err(vm.new_type_error(format!(
+                        "a bytes-like object is required, not {}",
+                        obj.class()
+                    )))
+        )
+    }
+}
+
+impl<B: PyValue> TryFromObject for Either<PyByteInner, PyRef<B>> {
+    fn try_from_object(vm: &VirtualMachine, obj: PyObjectRef) -> PyResult<Self> {
+        match PyByteInner::try_from_object(vm, obj.clone()) {
+            Ok(a) => Ok(Either::A(a)),
+            Err(_) => match obj.clone().downcast::<B>() {
+                Ok(b) => Ok(Either::B(b)),
+                Err(_) => Err(vm.new_type_error(format!(
+                    "a bytes-like object or {} is required, not {}",
+                    B::class(vm),
+                    obj.class()
+                ))),
+            },
+        }
+    }
 }
 
 #[derive(FromArgs)]
@@ -104,12 +140,11 @@ impl ByteInnerNewOptions {
 #[derive(FromArgs)]
 pub struct ByteInnerFindOptions {
     #[pyarg(positional_only, optional = false)]
-    sub: PyObjectRef,
+    sub: Either<PyByteInner, PyIntRef>,
     #[pyarg(positional_only, optional = true)]
     start: OptionalArg<Option<PyIntRef>>,
-    // start: OptionalArg<PyObjectRef>,
     #[pyarg(positional_only, optional = true)]
-    end: OptionalArg<PyObjectRef>,
+    end: OptionalArg<Option<PyIntRef>>,
 }
 
 impl ByteInnerFindOptions {
@@ -118,48 +153,19 @@ impl ByteInnerFindOptions {
         elements: &[u8],
         vm: &VirtualMachine,
     ) -> PyResult<(Vec<u8>, Range<usize>)> {
-        let sub = match try_as_bytes_like(&self.sub) {
-            Some(value) => value,
-            None => match_class!(self.sub,
-                i @ PyInt => vec![i.as_bigint().byte_or(vm)?],
-                obj => {return Err(vm.new_type_error(format!("argument should be integer or bytes-like object, not {}", obj)));}),
+        let sub = match self.sub {
+            Either::A(v) => v.elements.to_vec(),
+            Either::B(int) => vec![int.as_bigint().byte_or(vm)?],
         };
-        // let start = if let OptionalArg::Present(st) = self.start {
-        //     match_class!(st,
-        //     i @ PyInt => {Some(i.as_bigint().clone())},
-        //     _obj @ PyNone => None,
-        //     _=> {return Err(vm.new_type_error("slice indices must be integers or None or have an __index__ method".to_string()));}
-        //     )
-        // } else {
-        //     None
-        // };
-        // let start = if let OptionalArg::Present(st) = self.start {
-        //     if let Some(ss) = st {
-        //         Some(ss.as_bigint().clone())
-        //     } else {
-        //         None
-        //     }
-        // } else {
-        //     None
-        // };
 
         let start = match self.start {
             OptionalArg::Present(Some(int)) => Some(int.as_bigint().clone()),
             _ => None,
         };
-        // match_class!(st,
-        // i @ PyInt => {Some(i.as_bigint().clone())},
-        // _obj @ PyNone => None,
-        // _=> {return Err(vm.new_type_error("slice indices must be integers or None or have an __index__ method".to_string()));}
-        // )
-        let end = if let OptionalArg::Present(e) = self.end {
-            match_class!(e,
-            i @ PyInt => {Some(i.as_bigint().clone())},
-            _obj @ PyNone => None,
-            _=> {return Err(vm.new_type_error("slice indices must be integers or None or have an __index__ method".to_string()));}
-            )
-        } else {
-            None
+
+        let end = match self.end {
+            OptionalArg::Present(Some(int)) => Some(int.as_bigint().clone()),
+            _ => None,
         };
 
         let range = elements.to_vec().get_slice_range(&start, &end);
@@ -220,20 +226,16 @@ impl ByteInnerPaddingOptions {
 #[derive(FromArgs)]
 pub struct ByteInnerTranslateOptions {
     #[pyarg(positional_only, optional = false)]
-    table: PyObjectRef,
+    table: Either<PyByteInner, PyNoneRef>,
     #[pyarg(positional_or_keyword, optional = true)]
-    delete: OptionalArg<PyObjectRef>,
+    delete: OptionalArg<PyByteInner>,
 }
 
 impl ByteInnerTranslateOptions {
     pub fn get_value(self, vm: &VirtualMachine) -> PyResult<(Vec<u8>, Vec<u8>)> {
-        let table = match try_as_bytes_like(&self.table) {
-            Some(value) => value,
-            None => match_class!(self.table,
-
-            _n @ PyNone => (0..=255).collect::<Vec<u8>>(),
-            obj => {return Err(vm.new_type_error(format!("a bytes-like object is required, not {}", obj)));},
-            ),
+        let table = match self.table {
+            Either::A(v) => v.elements.to_vec(),
+            Either::B(_) => (0..=255).collect::<Vec<u8>>(),
         };
 
         if table.len() != 256 {
@@ -242,18 +244,9 @@ impl ByteInnerTranslateOptions {
             );
         }
 
-        let delete = if let OptionalArg::Present(value) = &self.delete {
-            match try_as_bytes_like(&value) {
-                Some(value) => value,
-                None => {
-                    return Err(vm.new_type_error(format!(
-                        "a bytes-like object is required, not {}",
-                        value
-                    )));
-                }
-            }
-        } else {
-            vec![]
+        let delete = match self.delete {
+            OptionalArg::Present(byte) => byte.elements,
+            _ => vec![],
         };
 
         Ok((table, delete))
@@ -340,52 +333,43 @@ impl PyByteInner {
         elements
     }
 
-    pub fn contains(&self, needle: PyObjectRef, vm: &VirtualMachine) -> PyResult {
-        match try_as_bytes_like(&needle) {
-            Some(value) => self.contains_bytes(&value, vm),
-            None => match_class!(needle,
-                i @ PyInt => self.contains_int(&i, vm),
-                obj => {Err(vm.new_type_error(format!("a bytes-like object is required, not {}", obj)))}),
-        }
-    }
-
-    fn contains_bytes(&self, other: &[u8], vm: &VirtualMachine) -> PyResult {
-        for (n, i) in self.elements.iter().enumerate() {
-            if n + other.len() <= self.len()
-                && *i == other[0]
-                && &self.elements[n..n + other.len()] == other
-            {
-                return Ok(vm.new_bool(true));
+    pub fn contains(&self, needle: Either<PyByteInner, PyIntRef>, vm: &VirtualMachine) -> PyResult {
+        match needle {
+            Either::A(byte) => {
+                let other = &byte.elements[..];
+                for (n, i) in self.elements.iter().enumerate() {
+                    if n + other.len() <= self.len()
+                        && *i == other[0]
+                        && &self.elements[n..n + other.len()] == other
+                    {
+                        return Ok(vm.new_bool(true));
+                    }
+                }
+                Ok(vm.new_bool(false))
+            }
+            Either::B(int) => {
+                if self.elements.contains(&int.as_bigint().byte_or(vm)?) {
+                    Ok(vm.new_bool(true))
+                } else {
+                    Ok(vm.new_bool(false))
+                }
             }
         }
-        Ok(vm.new_bool(false))
     }
 
-    fn contains_int(&self, int: &PyInt, vm: &VirtualMachine) -> PyResult<PyObjectRef> {
-        if self.elements.contains(&int.as_bigint().byte_or(vm)?) {
-            Ok(vm.new_bool(true))
-        } else {
-            Ok(vm.new_bool(false))
-        }
-    }
-
-    pub fn getitem(&self, needle: PyObjectRef, vm: &VirtualMachine) -> PyResult {
-        match_class!(needle,
-        int @ PyInt => //self.inner.getitem_int(&int, vm),
-            {
+    pub fn getitem(&self, needle: Either<PyIntRef, PySliceRef>, vm: &VirtualMachine) -> PyResult {
+        match needle {
+            Either::A(int) => {
                 if let Some(idx) = self.elements.get_pos(int.as_bigint().to_i32().unwrap()) {
-                Ok(vm.new_int(self.elements[idx]))
-            } else {
-                Err(vm.new_index_error("index out of range".to_string()))
+                    Ok(vm.new_int(self.elements[idx]))
+                } else {
+                    Err(vm.new_index_error("index out of range".to_string()))
+                }
             }
-            },
-        slice @ PySlice => //self.inner.getitem_slice(slice.as_object(), vm),
-            {
-                Ok(vm
-                    .ctx
-                    .new_bytes(self.elements.get_slice_items(vm, slice.as_object())?))
-                },
-        obj  => Err(vm.new_type_error(format!("byte indices must be integers or slices, not {}", obj))))
+            Either::B(slice) => Ok(vm
+                .ctx
+                .new_bytes(self.elements.get_slice_items(vm, slice.as_object())?)),
+        }
     }
 
     pub fn isalnum(&self, vm: &VirtualMachine) -> PyResult {
@@ -553,7 +537,6 @@ impl PyByteInner {
         options: ByteInnerPaddingOptions,
         vm: &VirtualMachine,
     ) -> PyResult<Vec<u8>> {
-        // let fn_name = "center".to_string();
         let (fillbyte, diff) = options.get_value("center", self.len(), vm)?;
 
         let mut ln: usize = diff / 2;
@@ -580,7 +563,6 @@ impl PyByteInner {
         options: ByteInnerPaddingOptions,
         vm: &VirtualMachine,
     ) -> PyResult<Vec<u8>> {
-        // let fn_name = "ljust".to_string();
         let (fillbyte, diff) = options.get_value("ljust", self.len(), vm)?;
 
         // merge all
@@ -596,7 +578,6 @@ impl PyByteInner {
         options: ByteInnerPaddingOptions,
         vm: &VirtualMachine,
     ) -> PyResult<Vec<u8>> {
-        // let fn_name = "rjust".to_string();
         let (fillbyte, diff) = options.get_value("rjust", self.len(), vm)?;
 
         // merge all
@@ -650,35 +631,28 @@ impl PyByteInner {
 
     pub fn startsendswith(
         &self,
-        arg: PyObjectRef,
+        arg: Either<PyByteInner, PyTupleRef>,
         start: OptionalArg<PyObjectRef>,
         end: OptionalArg<PyObjectRef>,
         endswith: bool, // true for endswith, false for startswith
         vm: &VirtualMachine,
     ) -> PyResult {
-        let suff = if objtype::isinstance(&arg, &vm.ctx.tuple_type()) {
-            let mut flatten = vec![];
-            for v in objsequence::get_elements(&arg).to_vec() {
-                match try_as_bytes_like(&v) {
-                    None => {
-                        return Err(vm.new_type_error(format!(
-                            "a bytes-like object is required, not {}",
-                            &v.class().name,
-                        )));
+        let suff = match arg {
+            Either::A(byte) => byte.elements,
+            Either::B(tuple) => {
+                let mut flatten = vec![];
+                for v in objsequence::get_elements(tuple.as_object()).to_vec() {
+                    match try_as_bytes_like(&v) {
+                        None => {
+                            return Err(vm.new_type_error(format!(
+                                "a bytes-like object is required, not {}",
+                                &v.class().name,
+                            )));
+                        }
+                        Some(value) => flatten.extend(value),
                     }
-                    Some(value) => flatten.extend(value),
                 }
-            }
-            flatten
-        } else {
-            match try_as_bytes_like(&arg) {
-                Some(value) => value,
-                None => {
-                    return Err(vm.new_type_error(format!(
-                        "endswith first arg must be bytes or a tuple of bytes, not {}",
-                        arg
-                    )));
-                }
+                flatten
             }
         };
 
@@ -736,33 +710,17 @@ impl PyByteInner {
         Ok(-1isize)
     }
 
-    pub fn maketrans(from: PyObjectRef, to: PyObjectRef, vm: &VirtualMachine) -> PyResult {
+    pub fn maketrans(from: PyByteInner, to: PyByteInner, vm: &VirtualMachine) -> PyResult {
         let mut res = vec![];
 
-        let from = match try_as_bytes_like(&from) {
-            Some(value) => value,
-            None => {
-                return Err(
-                    vm.new_type_error(format!("a bytes-like object is required, not {}", from))
-                );
-            }
-        };
-
-        let to = match try_as_bytes_like(&to) {
-            Some(value) => value,
-            None => {
-                return Err(
-                    vm.new_type_error(format!("a bytes-like object is required, not {}", to))
-                );
-            }
-        };
-
         for i in 0..=255 {
-            res.push(if let Some(position) = from.iter().position(|&x| x == i) {
-                to[position]
-            } else {
-                i
-            });
+            res.push(
+                if let Some(position) = from.elements.iter().position(|&x| x == i) {
+                    to.elements[position]
+                } else {
+                    i
+                },
+            );
         }
 
         Ok(vm.ctx.new_bytes(res))
@@ -784,21 +742,12 @@ impl PyByteInner {
 
     pub fn strip(
         &self,
-        chars: OptionalArg<PyObjectRef>,
+        chars: OptionalArg<PyByteInner>,
         position: ByteInnerPosition,
-        vm: &VirtualMachine,
+        _vm: &VirtualMachine,
     ) -> PyResult<Vec<u8>> {
-        let chars = if let OptionalArg::Present(content) = chars {
-            // match try_as_bytes_like(&content) {
-            //     Some(value) => value,
-            //     None => {
-            //         return Err(vm.new_type_error(format!(
-            //             "a bytes-like object is required, not {}",
-            //             content
-            //         )));
-            //     }
-            // }
-            PyByteInner::try_from_object(vm, content)?.elements
+        let chars = if let OptionalArg::Present(bytes) = chars {
+            bytes.elements
         } else {
             vec![b' ']
         };
@@ -859,18 +808,4 @@ pub enum ByteInnerPosition {
     Left,
     Right,
     All,
-}
-
-impl TryFromObject for PyByteInner {
-    fn try_from_object(vm: &VirtualMachine, obj: PyObjectRef) -> PyResult<Self> {
-        match_class!(obj.clone(),
-
-        i @ PyBytes => Ok(PyByteInner{elements: i.get_value().to_vec()}),
-        // j @ PyByteArray => Some(get_value_bytearray(&j.as_object()).to_vec()),
-        // k @ PyMemoryView => Some(k.get_obj_value().unwrap()),
-        _ => Err(vm.new_type_error(format!(
-                            "a bytes-like object is required, not {}",
-                            obj
-                        ))))
-    }
 }
